@@ -35,4 +35,10 @@ so the shape of its *Weights and Biases* are:
 The total parameters of this model = 20175
 ## **2. Model's Accuracy**
 - ### Model's accuracy on the training examples:                 0.88465
+
 - ### Model's accuracy on the testing examples:                 0.8826
+
+## **3. Model's Losses**
+- ### Model's losses on the training examples:                 0.038948928150391
+
+- ### Model's losses on the testing examples:                 0.04146647030298654
