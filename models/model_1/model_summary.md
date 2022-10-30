@@ -34,11 +34,21 @@ so the shape of its *Weights and Biases* are:
 
 The total parameters of this model = 20175
 ## **2. Model's Accuracy**
-- ### Model's accuracy on the training examples:                 88.465
+- ### Model's accuracy of the training examples:                 92.906
 
-- ### Model's accuracy on the testing examples:                 88.26
+- ### Model's accuracy of the cross validating examples:                 91.66
+
+- ### Model's accuracy of the testing examples:                 92.17
 
 ## **3. Model's Losses**
-- ### Model's losses on the training examples:                 0.038948928150391
+- ### Model's losses of the training examples:                 0.023355504527255298
 
-- ### Model's losses on the testing examples:                 0.04146647030298654
+![Cost function of training examples](./j_train_graph.png)
+
+- ### Model's losses of the cross validating examples:                 0.030931396892119177
+
+![Cost function of cross validating examples](./j_cv_graph.png)
+
+- ### Model's losses of the testing examples:                 0.027994303588135386
+![Cost function of testing examples](./j_test_graph.png)
+
