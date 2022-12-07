@@ -18,9 +18,9 @@ class NeuralNetwork:
         self.m = X_train.shape[0]
         self.epsilon = 1e-8
 
-        self.X_train_norm = X_train / 255
-        self.X_test_norm = X_test / 255
-        self.X_cv_norm = X_cv / 255
+        self.X_train_norm, self.miu, self.sigma = self.data_normalize(X_train)
+        self.X_test_norm = (X_test - self.miu) / (self.sigma + 1e-8)
+        self.X_cv_norm = (X_cv - self.miu) / (self.sigma + 1e-8)
 
         self.y_train = np.array([self.convert2_OneHotEncodeing(y) for y in y_train])
         self.y_cv = np.array([self.convert2_OneHotEncodeing(y) for y in y_cv])
@@ -59,15 +59,10 @@ class NeuralNetwork:
         return e
 
     def data_normalize(self, X):
-        X_norm = [0 for i in range(X.shape[1])]
-        for index in range(X.shape[1]):
-            avg = np.average(X[:, index])
-            std = np.std(X[:, index])
-            if std != 0:
-                X_norm[index] = (X[:, index] - avg) / std
-            else:
-                X_norm[index] = X[:, index]
-        return np.array(X_norm).T
+        miu = np.mean(X, axis=0, keepdims=True)
+        std = np.std(X, axis=0, keepdims=True)
+        X_norm = (X - miu) / (std + 1e-8)
+        return X_norm, miu, std
 
     def parameters(self):
         n_weights = 0
