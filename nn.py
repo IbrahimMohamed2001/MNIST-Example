@@ -14,19 +14,19 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, X_train, X_cv, X_test, y_train, y_cv, y_test, **layers):
+    def __init__(self, X_train, X_cv, X_test, y_train, y_cv, y_test, layers):
         self.m = X_train.shape[0]
         self.epsilon = 1e-8
 
-        self.X_train_norm = X_train / 255
-        self.X_test_norm = X_test / 255
-        self.X_cv_norm = X_cv / 255
+        self.X_train_norm, self.miu, self.sigma = self.data_normalize(X_train)
+        self.X_test_norm = (X_test - self.miu) / (self.sigma + 1e-8)
+        self.X_cv_norm = (X_cv - self.miu) / (self.sigma + 1e-8)
 
         self.y_train = np.array([self.convert2_OneHotEncodeing(y) for y in y_train])
         self.y_cv = np.array([self.convert2_OneHotEncodeing(y) for y in y_cv])
         self.y_test = np.array([self.convert2_OneHotEncodeing(y) for y in y_test])
 
-        self.layers = list(layers.items())
+        self.layers = layers
         self.Weights = []
         self.Biases = []
         self.V_dw = []
@@ -42,11 +42,11 @@ class NeuralNetwork:
         for index, layer in enumerate(self.layers):
             if index == 0:
                 self.Weights.append(np.random.randn(
-                    self.X_train_norm.shape[1], layer[1].neurons) * 0.1)
+                    self.X_train_norm.shape[1], layer.neurons) * 0.1)
             else:
                 self.Weights.append(np.random.randn(
-                    self.layers[index - 1][1].neurons, layer[1].neurons) * 0.1)
-            self.Biases.append(np.zeros(shape=(1, layer[1].neurons)))
+                    self.layers[index - 1].neurons, layer.neurons) * 0.1)
+            self.Biases.append(np.zeros(shape=(1, layer.neurons)))
 
             self.V_dw.append(np.zeros_like(self.Weights[index]))
             self.V_db.append(np.zeros_like(self.Biases[index]))
@@ -59,15 +59,10 @@ class NeuralNetwork:
         return e
 
     def data_normalize(self, X):
-        X_norm = [0 for i in range(X.shape[1])]
-        for index in range(X.shape[1]):
-            avg = np.average(X[:, index])
-            std = np.std(X[:, index])
-            if std != 0:
-                X_norm[index] = (X[:, index] - avg) / std
-            else:
-                X_norm[index] = X[:, index]
-        return np.array(X_norm).T
+        miu = np.mean(X, axis=0, keepdims=True)
+        std = np.std(X, axis=0, keepdims=True)
+        X_norm = (X - miu) / (std + 1e-8)
+        return X_norm, miu, std
 
     def parameters(self):
         n_weights = 0
@@ -86,7 +81,7 @@ class NeuralNetwork:
         self.Z = []
         for index, layer in enumerate(self.layers):
             self.A.append(self.dense(
-                self.A[index], self.Weights[index], self.Biases[index], layer[1].activation))
+                self.A[index], self.Weights[index], self.Biases[index], layer.activation))
         self.y_predict = self.A[-1]
 
     def backwardPropagation(self, y_batch, learning_rate, lambda_, beta1, beta2, t):
@@ -108,7 +103,7 @@ class NeuralNetwork:
 
             if index == 0: break
             delta = np.matmul(
-                delta, self.Weights[index].T) * self.layers[index - 1][1].activation_drev(self.Z[index - 1])
+                delta, self.Weights[index].T) * self.layers[index - 1].activation_drev(self.Z[index - 1])
             dw = np.matmul(self.A[index - 1].T, delta)
             db = np.sum(delta, axis=0).reshape(1, -1)
 
