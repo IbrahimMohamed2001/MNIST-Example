@@ -14,7 +14,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, X_train, X_cv, X_test, y_train, y_cv, y_test, **layers):
+    def __init__(self, X_train, X_cv, X_test, y_train, y_cv, y_test, layers):
         self.m = X_train.shape[0]
         self.epsilon = 1e-8
 
@@ -26,7 +26,7 @@ class NeuralNetwork:
         self.y_cv = np.array([self.convert2_OneHotEncodeing(y) for y in y_cv])
         self.y_test = np.array([self.convert2_OneHotEncodeing(y) for y in y_test])
 
-        self.layers = list(layers.items())
+        self.layers = layers
         self.Weights = []
         self.Biases = []
         self.V_dw = []
@@ -42,11 +42,11 @@ class NeuralNetwork:
         for index, layer in enumerate(self.layers):
             if index == 0:
                 self.Weights.append(np.random.randn(
-                    self.X_train_norm.shape[1], layer[1].neurons) * 0.1)
+                    self.X_train_norm.shape[1], layer.neurons) * 0.1)
             else:
                 self.Weights.append(np.random.randn(
-                    self.layers[index - 1][1].neurons, layer[1].neurons) * 0.1)
-            self.Biases.append(np.zeros(shape=(1, layer[1].neurons)))
+                    self.layers[index - 1].neurons, layer.neurons) * 0.1)
+            self.Biases.append(np.zeros(shape=(1, layer.neurons)))
 
             self.V_dw.append(np.zeros_like(self.Weights[index]))
             self.V_db.append(np.zeros_like(self.Biases[index]))
@@ -86,7 +86,7 @@ class NeuralNetwork:
         self.Z = []
         for index, layer in enumerate(self.layers):
             self.A.append(self.dense(
-                self.A[index], self.Weights[index], self.Biases[index], layer[1].activation))
+                self.A[index], self.Weights[index], self.Biases[index], layer.activation))
         self.y_predict = self.A[-1]
 
     def backwardPropagation(self, y_batch, learning_rate, lambda_, beta1, beta2, t):
@@ -108,7 +108,7 @@ class NeuralNetwork:
 
             if index == 0: break
             delta = np.matmul(
-                delta, self.Weights[index].T) * self.layers[index - 1][1].activation_drev(self.Z[index - 1])
+                delta, self.Weights[index].T) * self.layers[index - 1].activation_drev(self.Z[index - 1])
             dw = np.matmul(self.A[index - 1].T, delta)
             db = np.sum(delta, axis=0).reshape(1, -1)
 
