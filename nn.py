@@ -85,7 +85,7 @@ class NeuralNetwork:
         self.y_predict = self.A[-1]
 
     def backwardPropagation(self, y_batch, learning_rate, lambda_, beta1, beta2, t):
-        delta = self.cross_entropy_grad(y_batch) / self.m
+        delta = self.cross_entropy_grad(y_batch) / len(y_batch)
         dw = np.matmul(self.A[-2].T, delta)
         db = np.sum(delta, axis=0).reshape(1, -1)
         for index in reversed(np.arange(len(self.layers))):
@@ -98,7 +98,7 @@ class NeuralNetwork:
             adam_dw = learning_rate * V_dw_correct / (np.sqrt(S_dw_correct) + self.epsilon)
             adam_db = learning_rate * V_db_correct / (np.sqrt(S_db_correct) + self.epsilon)
             
-            self.Weights[index] = self.Weights[index] * (1 - learning_rate * lambda_ / self.m) - adam_dw
+            self.Weights[index] = self.Weights[index] * (1 - learning_rate * lambda_ / len(y_batch)) - adam_dw
             self.Biases[index] -= adam_db
 
             if index == 0: break
@@ -108,7 +108,7 @@ class NeuralNetwork:
             db = np.sum(delta, axis=0).reshape(1, -1)
 
     def fit(self, epochs=100, learning_rate=0.02, beta1=0.9, beta2=0.999, lambda_=0.0, mini_batch=128, learning_rate_decay=0.1):
-        num_batches = int(self.m / mini_batch)
+        num_batches = self.m // mini_batch
         tic = time()
         
         self.forwardPropagation(X=self.X_cv_norm)
@@ -147,14 +147,14 @@ class NeuralNetwork:
             self.j_train = np.append(self.j_train, self.cross_entropy(self.y_train))
             acc = 100.0 * self.getAccuracy(y=self.y_train)
             self.accuracy = np.append(self.accuracy, acc)
-            
-            learning_rate /= (1.0 + learning_rate_decay * (epoch - 1))
-            
-            if epoch % 10 == 0:
-                print(f'epoch: {epoch}')
-                print(f'training set prediction accuracy {acc}')
-                if np.abs(self.j_train[epoch] - self.j_train[epoch - 1]) <= self.epsilon:
-                    break
+            if epoch % 5 ==0:    
+                learning_rate /= (1.0 + learning_rate_decay * (epoch - 1))
+                if epoch % 10 == 0:
+                    print(f'epoch: {epoch}')
+                    print(f'learning rate = {learning_rate}')
+                    print(f'training set prediction accuracy {acc}')
+                    if np.abs(self.j_train[epoch] - self.j_train[epoch - 1]) <= self.epsilon:
+                        break
         
         toc = time()
         self.executed_time = toc - tic

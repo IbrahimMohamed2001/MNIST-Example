@@ -38,34 +38,34 @@ The total parameters of this model = 20175
 
                 Batch size (mini batch): 256 training examples
 
-                Learning rate (alpha): 0.035
+                Learning rate (alpha): 0.01
 
-                Learning rate decay: 0.0006
+                Learning rate decay: 0.002
 
-                Regularization term -L2 regularization- (lambda): 15.0
+                Regularization term -L2 regularization- (lambda): 64.0
 
                 Gradient descent with momentum hyperparameter (beta 1): 0.9
 
                 RMSprop hyperparameter (beta 2): 0.999
 
 ## **3. Model's Accuracy**
-- ### Model's accuracy of the training examples:                99.98599999999999
+- ### Model's accuracy of the training examples:                98.012
 
 ![Accuracy of training examples](./accuracy_graph.png)
 
-- ### Model's accuracy of the cross validating examples:                95.50999999999999
+- ### Model's accuracy of the cross validating examples:                96.67
 
-- ### Model's accuracy of the testing examples:                95.81
+- ### Model's accuracy of the testing examples:                96.67
 
 ## **4. Model's Losses**
-- ### Model's losses of the training examples: 0.00013289422023904192
+- ### Model's losses of the training examples: 0.00847842919266155
 
 ![Cost function of training examples](./j_graph.png)
 
-- ### Model's losses of the cross validating examples: 0.04081157259845819
+- ### Model's losses of the cross validating examples: 0.012257237308404344
 
-- ### Model's losses of the testing examples: 0.03853479251623272
+- ### Model's losses of the testing examples: 0.01218768052905945
 
 ## **5. Model's Executed time**
-- ### The executed time: 6 minutes,,             33 seconds ,,                 267.36 milli seconds, along 190 epochs
+- ### The executed time: 8 minutes,,             4 seconds ,,                 973.04 milli seconds, along 150 epochs
 
