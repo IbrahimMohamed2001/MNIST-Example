@@ -18,9 +18,9 @@ class NeuralNetwork:
         self.m = X_train.shape[0]
         self.epsilon = 1e-8
 
-        self.X_train_norm, self.miu, self.sigma = self.data_normalize(X_train)
-        self.X_test_norm = (X_test - self.miu) / (self.sigma + 1e-8)
-        self.X_cv_norm = (X_cv - self.miu) / (self.sigma + 1e-8)
+        self.X_train_norm, self.miu, self.var = self.data_normalize(X_train)
+        self.X_test_norm = (X_test - self.miu) / np.sqrt(self.var + 1e-8)
+        self.X_cv_norm = (X_cv - self.miu) / np.sqrt(self.var + 1e-8)
 
         self.y_train = np.array([self.convert2_OneHotEncodeing(y) for y in y_train])
         self.y_cv = np.array([self.convert2_OneHotEncodeing(y) for y in y_cv])
@@ -28,10 +28,15 @@ class NeuralNetwork:
 
         self.layers = layers
         self.Weights = []
-        self.Biases = []
+        self.Gamma = [np.random.randn(1, layer.neurons) * 0.01 for layer in layers]
+        self.Biases = [0.0 for _ in layers]
+        self.V_sigma = [0.0 for _ in layers]
+        self.V_miu = [0.0 for _ in layers]
+        self.V_dg = [0.0 for _ in layers]
+        self.S_dg = [0.0 for _ in layers]
         self.V_dw = []
-        self.V_db = []
         self.S_dw = []
+        self.V_db = []
         self.S_db = []
 
         self.j_train = np.array([])
@@ -42,12 +47,10 @@ class NeuralNetwork:
         for index, layer in enumerate(self.layers):
             if index == 0:
                 self.Weights.append(np.random.randn(
-                    self.X_train_norm.shape[1], layer.neurons) * 0.1)
+                    self.X_train_norm.shape[1], layer.neurons) * 0.01)
             else:
                 self.Weights.append(np.random.randn(
-                    self.layers[index - 1].neurons, layer.neurons) * 0.1)
-            self.Biases.append(np.zeros(shape=(1, layer.neurons)))
-
+                    self.layers[index - 1].neurons, layer.neurons) * 0.01)
             self.V_dw.append(np.zeros_like(self.Weights[index]))
             self.V_db.append(np.zeros_like(self.Biases[index]))
             self.S_dw.append(np.zeros_like(self.Weights[index]))
@@ -60,9 +63,9 @@ class NeuralNetwork:
 
     def data_normalize(self, X):
         miu = np.mean(X, axis=0, keepdims=True)
-        std = np.std(X, axis=0, keepdims=True)
-        X_norm = (X - miu) / (std + 1e-8)
-        return X_norm, miu, std
+        var = np.var(X, axis=0, keepdims=True)
+        X_norm = (X - miu) / np.sqrt(var + 1e-8)
+        return X_norm, miu, var
 
     def parameters(self):
         n_weights = 0
@@ -70,92 +73,110 @@ class NeuralNetwork:
             n_weights += np.size(W) + np.size(B)
         return n_weights
 
-    def dense(self, A_in, W, B, activation):
-        Z = np.matmul(A_in, W) + B
+    def dense(self, A_in, W, b, activation, gamma, index, beta, testing=False):
+        Z = np.matmul(A_in, W)
+        Z_norm, miu, var = self.data_normalize(Z)
+
+        if testing:
+            Z_norm = (Z - self.V_miu[index]) / (self.V_sigma[index] + self.epsilon)
+        else: 
+            self.V_miu[index] = beta * self.V_miu[index] - (1.0 - beta) * miu
+            self.V_sigma[index]  = beta * self.V_sigma[index] - (1.0 - beta) * np.sqrt(var)
+
+        self.std.append(np.sqrt(var + self.epsilon))
+        Z_tilde = Z_norm * gamma + b
         self.Z.append(Z)
-        A_out = activation(Z)
+        self.Z_norm.append(Z_norm)
+        A_out = activation(Z_tilde)
         return A_out
 
-    def forwardPropagation(self, X):
+    def forwardPropagation(self, X, beta=0.99, testing=False):
         self.A = [X]
         self.Z = []
-        for index, layer in enumerate(self.layers):
-            self.A.append(self.dense(
-                self.A[index], self.Weights[index], self.Biases[index], layer.activation))
+        self.Z_norm = []
+        self.std = []
+        for index, (layer, A, W, b, G) in enumerate(zip(self.layers, self.A, self.Weights, self.Biases, self.Gamma)):
+            self.A.append(self.dense(A, W, b, layer.activation, G, index, beta, testing))
         self.y_predict = self.A[-1]
 
     def backwardPropagation(self, y_batch, learning_rate, lambda_, beta1, beta2, t):
-        delta = self.cross_entropy_grad(y_batch) / self.m
-        dw = np.matmul(self.A[-2].T, delta)
-        db = np.sum(delta, axis=0).reshape(1, -1)
+        delta = self.cross_entropy_grad(y_batch) / y_batch.shape[0]
         for index in reversed(np.arange(len(self.layers))):
-            self.V_dw[index], self.V_db[index] = beta1 * self.V_dw[index] + (1.0 - beta1) * dw, beta1 * self.V_db[index] + (1.0 - beta1) * db
-            self.S_dw[index], self.S_db[index] = beta2 * self.S_dw[index] + (1.0 - beta2) * (dw ** 2), beta2 * self.S_db[index] + (1.0 - beta2) * (db ** 2)
+            db = np.sum(delta, axis=0, keepdims=True)
+            dg = np.sum(self.Z_norm[index] * delta, axis=0, keepdims=True)
+            delta *= self.Gamma[index] / self.std[index]
+            dw = np.matmul(self.A[index].T, delta)
+
+            self.V_dw[index], self.S_dw[index] = beta1 * self.V_dw[index] + (1.0 - beta1) * dw, beta2 * self.S_dw[index] + (1.0 - beta2) * (dw ** 2)
+            self.V_db[index], self.S_db[index] = beta1 * self.V_db[index] + (1.0 - beta1) * db, beta2 * self.S_db[index] + (1.0 - beta2) * (db ** 2)
+            self.V_dg[index], self.S_dg[index] = beta1 * self.V_dg[index] + (1.0 - beta1) * dg, beta2 * self.S_dg[index] + (1.0 - beta2) * (dg ** 2)
             
-            V_dw_correct, V_db_correct = self.V_dw[index] / (1.0 - beta1 ** (t + 1)), self.V_db[index] / (1.0 - beta1 ** (t + 1))
-            S_dw_correct, S_db_correct = self.S_dw[index] / (1.0 - beta2 ** (t + 1)), self.S_db[index] / (1.0 - beta2 ** (t + 1))
-            
+            V_dw_correct, S_dw_correct = self.V_dw[index] / (1.0 - beta1 ** (t + 1)), self.S_dw[index] / (1.0 - beta2 ** (t + 1))
+            V_db_correct, S_db_correct = self.V_db[index] / (1.0 - beta1 ** (t + 1)), self.S_db[index] / (1.0 - beta2 ** (t + 1))
+            V_dg_correct, S_dg_correct = self.V_dg[index] / (1.0 - beta1 ** (t + 1)), self.S_dg[index] / (1.0 - beta2 ** (t + 1))
+
             adam_dw = learning_rate * V_dw_correct / (np.sqrt(S_dw_correct) + self.epsilon)
             adam_db = learning_rate * V_db_correct / (np.sqrt(S_db_correct) + self.epsilon)
-            
-            self.Weights[index] = self.Weights[index] * (1 - learning_rate * lambda_ / self.m) - adam_dw
+            adam_dg = learning_rate * V_dg_correct / (np.sqrt(S_dg_correct) + self.epsilon)
+
+            self.Weights[index] = self.Weights[index] * (1 - learning_rate * lambda_ / y_batch.shape[0]) - adam_dw
             self.Biases[index] -= adam_db
+            self.Gamma[index] -= adam_dg
 
             if index == 0: break
             delta = np.matmul(
                 delta, self.Weights[index].T) * self.layers[index - 1].activation_drev(self.Z[index - 1])
-            dw = np.matmul(self.A[index - 1].T, delta)
-            db = np.sum(delta, axis=0).reshape(1, -1)
 
-    def fit(self, epochs=100, learning_rate=0.02, beta1=0.9, beta2=0.999, lambda_=0.0, mini_batch=128, learning_rate_decay=0.1):
-        num_batches = int(self.m / mini_batch)
+    def fit(self, epochs=100, learning_rate=0.02, beta1=0.9, beta2=0.999, beta3 = 0.99, lambda_=0.0, mini_batch=128, learning_rate_decay=0.1):
+        num_batches = self.m // mini_batch
         tic = time()
-        
-        self.forwardPropagation(X=self.X_cv_norm)
+
+        self.forwardPropagation(self.X_cv_norm, beta3, True)
         self.j_cv = np.append(self.j_cv, self.cross_entropy(self.y_cv))
         acc = 100.0 * self.getAccuracy(y=self.y_cv)
         self.accuracy_cv = np.append(self.accuracy_cv, acc)
 
-        self.forwardPropagation(X=self.X_train_norm)
+        self.forwardPropagation(self.X_train_norm, beta3)
         self.j_train = np.append(self.j_train, self.cross_entropy(self.y_train))
         acc = 100.0 * self.getAccuracy(y=self.y_train)
         self.accuracy = np.append(self.accuracy, acc)
-        
-        print(f'epoch: {0}')
-        print(f'training set prediction accuracy {acc}')
 
+        print(f'epoch: {0}')
+        print(f'training set prediction accuracy {acc} ,, training set cost {self.j_train[0]}')
+        print(f'learning rate: {learning_rate}')
+        
         for epoch in np.arange(1, epochs + 1):
             start, end = 0, 0
-            
+
             for batch in np.arange(num_batches):
                 end = (batch + 1) * mini_batch
                 X_batch, y_batch = self.X_train_norm[start:end, :], self.y_train[start:end, :]
                 start = end
-                self.forwardPropagation(X_batch)
+                self.forwardPropagation(X_batch, beta3)
                 self.backwardPropagation(y_batch, learning_rate, lambda_, beta1, beta2, batch)
 
             X_batch, y_batch = self.X_train_norm[end::, :], self.y_train[end::, :]
-            self.forwardPropagation(X_batch)
+            self.forwardPropagation(X_batch, beta3)
             self.backwardPropagation(y_batch, learning_rate, lambda_, beta1, beta2, batch)
 
-            self.forwardPropagation(X=self.X_cv_norm)
+            self.forwardPropagation(self.X_cv_norm, beta3)
             self.j_cv = np.append(self.j_cv, self.cross_entropy(self.y_cv))
             acc = 100.0 * self.getAccuracy(y=self.y_cv)
             self.accuracy_cv = np.append(self.accuracy_cv, acc)
 
-            self.forwardPropagation(X=self.X_train_norm)
+            self.forwardPropagation(self.X_train_norm, beta3)
             self.j_train = np.append(self.j_train, self.cross_entropy(self.y_train))
             acc = 100.0 * self.getAccuracy(y=self.y_train)
             self.accuracy = np.append(self.accuracy, acc)
-            
-            learning_rate /= (1.0 + learning_rate_decay * (epoch - 1))
-            
+
+            print(f'learning rate: {learning_rate}')
+            if np.abs(self.j_train[epoch - 1] - self.j_train[epoch]) <= 1e-5: learning_rate *= (1.0 + learning_rate_decay * 5)
+            else: learning_rate /= (1.0 + learning_rate_decay * (epoch - 1))
+
             if epoch % 10 == 0:
                 print(f'epoch: {epoch}')
-                print(f'training set prediction accuracy {acc}')
-                if np.abs(self.j_train[epoch] - self.j_train[epoch - 1]) <= self.epsilon:
-                    break
-        
+                print(f'training set prediction accuracy {acc} ,, training set cost {self.j_train[epoch]}')
+
         toc = time()
         self.executed_time = toc - tic
         self.testModel()
